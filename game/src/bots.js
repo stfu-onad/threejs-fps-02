@@ -34,8 +34,37 @@ export function createBrain(rng) {
     reaction: 0.42 - rng.next() * 0.14,
     holdX: 0, holdZ: 0, holdYaw: 0,
     threwUtility: false,
+    lastRadioAt: -99, postPlantRound: -1, threwEntryFlash: false,
   };
 }
+
+// ---------------------------------------------------------- team radio
+// Callouts go to a queue on the state; main.js drains it into the HUD
+// feed. One voice at a time per bot, and never a wall of chatter: a bot
+// speaks at most once every six seconds and only on real information.
+export function zoneName(x, z) {
+  if (z < -8 && x < -16) return 'Bay A';
+  if (z < -8 && x > 16) return 'Bay B';
+  if (x < -28) return 'the west lane';
+  if (x > 28) return 'the east lane';
+  if (z > 18) return 'the south yard';
+  if (z < -24) return 'the north dock';
+  return 'mid yard';
+}
+
+function radio(state, f, text, now) {
+  const b = f.brain;
+  if (now - b.lastRadioAt < 6 || state.radio.length >= 3) return;
+  b.lastRadioAt = now;
+  state.radio.push({ name: f.name, text });
+}
+
+// Post-plant anchors per site: spread posts with a line on the bomb and
+// on the doors the retake has to come through — a crossfire, not a pile.
+const POST_PLANT_POSTS = {
+  A: [19, 21, 10], // site hold, dock corner, A door
+  B: [20, 14, 17], // site hold, B door, east connector
+};
 
 // ------------------------------------------------------------- planning
 // Called once per round by rounds.js. Attackers pick a site and split into
@@ -53,6 +82,8 @@ export function assignRoundPlans(state, mapData, rng) {
   jackals.forEach((f, i) => {
     const b = f.brain;
     b.threwUtility = false;
+    b.threwEntryFlash = false;
+    b.postPlantRound = -1;
     if (f.hasBomb) {
       b.plan = { role: 'carrier', site, wp: siteWp };
     } else if (i % 3 === 2) {
@@ -75,6 +106,8 @@ export function assignRoundPlans(state, mapData, rng) {
   wardens.forEach((f, i) => {
     const b = f.brain;
     b.threwUtility = false;
+    b.threwEntryFlash = false;
+    b.postPlantRound = -1;
     const post = posts[i % posts.length];
     const w = mapData.waypoints[post.wp];
     b.plan = { role: 'hold', wp: post.wp };
@@ -134,6 +167,8 @@ function think(state, mapData, f, rng, now) {
       b.reactAt = now + b.reaction * (0.7 + rng.next() * 0.6);
       b.trackHp = seen.hp;
       b.stallSince = now;
+      // first eyes on an enemy is information the whole team can use
+      if (rng.chance(0.55)) radio(state, f, `Contact — ${zoneName(seen.x, seen.z)}!`, now);
     }
     b.lastSeenX = seen.x; b.lastSeenZ = seen.z; b.lastSeenAt = now;
     b.nearestSeenD = seenD;
@@ -197,6 +232,7 @@ function think(state, mapData, f, rng, now) {
     if (n && b.plan && b.plan.role === 'hold' && f.id % 3 === 0) {
       b.mode = 'advance';
       setGoal(state, mapData, f, n.x, n.z);
+      radio(state, f, `Shots at ${zoneName(n.x, n.z)} — rotating`, now);
     }
   }
   // --- bomb logic
@@ -241,21 +277,65 @@ function think(state, mapData, f, rng, now) {
     }
   }
   if (state.bomb.planted) {
+    const s = mapData.sites[state.bomb.site];
     if (f.team === TEAM.JACKALS && b.mode !== 'engage') {
-      b.mode = 'hold';
-      b.holdX = f.x; b.holdZ = f.z;
-      b.holdYaw = Math.atan2(-(state.bomb.x - f.x), -(state.bomb.z - f.z));
+      if (b.postPlantRound !== state.round) {
+        // first thought after the plant: fall back to a post-plant post
+        // and set up a crossfire instead of standing on the bomb
+        b.postPlantRound = state.round;
+        const posts = POST_PLANT_POSTS[state.bomb.site];
+        const claimed = new Set(state.fighters
+          .filter((m) => m.alive && !m.isPlayer && m.team === TEAM.JACKALS && m !== f
+            && m.brain.postPlantRound === state.round)
+          .map((m) => m.brain.postWp));
+        let pick = posts.find((wp) => !claimed.has(wp));
+        if (pick === undefined) pick = posts[0];
+        b.postWp = pick;
+        const w = mapData.waypoints[pick];
+        setGoal(state, mapData, f, w.x, w.z);
+        b.mode = 'advance';
+        radio(state, f, `Bomb down — crossfire on ${s.name}`, now);
+      } else if (b.mode === 'advance' && (!b.hasGoal || dist2D(f.x, f.z, b.goalX, b.goalZ) < 1.6)) {
+        b.mode = 'hold';
+        b.holdX = f.x; b.holdZ = f.z;
+        b.holdYaw = Math.atan2(-(state.bomb.x - f.x), -(state.bomb.z - f.z));
+      } else if (b.mode === 'hold') {
+        b.holdYaw = Math.atan2(-(state.bomb.x - f.x), -(state.bomb.z - f.z));
+      }
     }
     if (f.team === TEAM.WARDENS && b.mode !== 'engage' && b.mode !== 'defuse') {
-      const s = mapData.sites[state.bomb.site];
       const nearBomb = dist2D(f.x, f.z, state.bomb.x, state.bomb.z) < 2.2;
-      const anyWardenNear = aliveOf(state, TEAM.WARDENS).some((w) => dist2D(w.x, w.z, state.bomb.x, state.bomb.z) < 3);
-      if (nearBomb && !seen) b.mode = 'defuse';
-      else if (b.mode !== 'retake' || !b.hasGoal) {
-        b.mode = 'retake';
-        setGoal(state, mapData, f, s.x + rng.range(-2, 2), s.z + rng.range(-2, 2));
+      if (nearBomb && !seen) {
+        b.mode = 'defuse';
+      } else {
+        // retakes are taken together: the lead Warden waits at the site
+        // edge while a teammate is still far out, instead of rushing the
+        // defuse alone into the crossfire
+        const wardensAlive = aliveOf(state, TEAM.WARDENS).filter((w) => !w.isPlayer);
+        const myD = dist2D(f.x, f.z, state.bomb.x, state.bomb.z);
+        const mateDs = wardensAlive.filter((w) => w !== f)
+          .map((w) => dist2D(w.x, w.z, state.bomb.x, state.bomb.z));
+        const waiting = mateDs.length > 0 && myD < 7 && Math.min(...mateDs) > 13;
+        if (waiting) {
+          b.mode = 'hold';
+          b.holdX = f.x; b.holdZ = f.z;
+          b.holdYaw = Math.atan2(-(state.bomb.x - f.x), -(state.bomb.z - f.z));
+        } else {
+          if (b.mode !== 'retake' || !b.hasGoal) {
+            b.mode = 'retake';
+            setGoal(state, mapData, f, s.x + rng.range(-2, 2), s.z + rng.range(-2, 2));
+          }
+          // the entry Warden flashes the site before walking in
+          if (!b.threwEntryFlash && f.grenades.flash > 0 && myD > 4 && myD < 13) {
+            f.yaw = Math.atan2(-(state.bomb.x - f.x), -(state.bomb.z - f.z));
+            f.pitch = 0.1;
+            if (throwGrenade(state, f, 'flash', now)) {
+              b.threwEntryFlash = true;
+              radio(state, f, `Flashing into ${s.name} — go!`, now);
+            }
+          }
+        }
       }
-      void anyWardenNear;
     }
   }
   // --- arrived at a defender post: settle into hold

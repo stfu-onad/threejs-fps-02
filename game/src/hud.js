@@ -26,7 +26,7 @@ function priceOf(item) {
   return WEAPONS[item.id].price;
 }
 
-export function createHud(onBuy) {
+export function createHud(onBuy, mapData) {
   const els = {
     hud: $('hud'), hp: $('hp-fill'), hpText: $('hp-text'), armor: $('armor-text'),
     ammo: $('ammo'), weapon: $('weapon-name'), money: $('money'),
@@ -38,7 +38,9 @@ export function createHud(onBuy) {
     channel: $('channel'), channelFill: $('channel-fill'), channelLabel: $('channel-label'),
     hitmarker: $('hitmarker'), scope: $('scope'), bombTag: $('bomb-tag'),
     hint: $('hint'), scoreTab: $('scoretab'), tabBoard: $('tab-board'),
+    radar: $('radar'),
   };
+  els.radarCtx = els.radar ? els.radar.getContext('2d') : null;
   let bannerUntil = 0;
 
   function banner(title, sub, seconds = 3) {
@@ -56,6 +58,82 @@ export function createHud(onBuy) {
     while (els.feed.children.length > 5) els.feed.removeChild(els.feed.firstChild);
     setTimeout(() => { div.style.opacity = '0'; }, 4200);
     setTimeout(() => { div.remove(); }, 5000);
+  }
+
+  // team radio traffic shares the feed but reads differently: italic,
+  // blue tab, the speaker's callsign first
+  function addRadio(name, text) {
+    const div = document.createElement('div');
+    div.className = 'feed-line radio';
+    div.textContent = `📻 ${name}: ${text}`;
+    els.feed.appendChild(div);
+    while (els.feed.children.length > 5) els.feed.removeChild(els.feed.firstChild);
+    setTimeout(() => { div.style.opacity = '0'; }, 4200);
+    setTimeout(() => { div.remove(); }, 5000);
+  }
+
+  // ------------------------------------------------------------- radar
+  // A fair radar: teammates always, the bomb when it is down, and enemy
+  // dots only where their own gunfire just gave them away (from the same
+  // noise events the bots hear). World bounds match the yard in map.js.
+  const WORLD = { x0: -38, x1: 38, z0: -34, z1: 34 };
+  function drawRadar(state, player) {
+    const ctx = els.radarCtx;
+    if (!ctx || !mapData) return;
+    const W = els.radar.width, H = els.radar.height;
+    const px = (x) => ((x - WORLD.x0) / (WORLD.x1 - WORLD.x0)) * W;
+    const pz = (z) => ((z - WORLD.z0) / (WORLD.z1 - WORLD.z0)) * H;
+    ctx.clearRect(0, 0, W, H);
+    // bomb sites
+    for (const key of ['A', 'B']) {
+      const s = mapData.sites[key];
+      ctx.beginPath();
+      ctx.arc(px(s.x), pz(s.z), (s.r / (WORLD.x1 - WORLD.x0)) * W, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(242,163,60,0.75)';
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(242,163,60,0.9)';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText(key, px(s.x) - 3, pz(s.z) + 3);
+    }
+    // enemies revealed by their own recent gunfire
+    for (const n of state.noise) {
+      if (n.team === player.team) continue;
+      const age = state.time - n.t;
+      if (age > 2.5) continue;
+      ctx.globalAlpha = 1 - age / 2.5;
+      ctx.fillStyle = '#ff5f4a';
+      ctx.beginPath();
+      ctx.arc(px(n.x), pz(n.z), 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // the bomb, once it leaves a carrier's hands
+    const bombPos = state.bomb.planted ? state.bomb : state.bomb.dropped;
+    if (bombPos) {
+      ctx.fillStyle = Math.sin(state.time * 6) > 0 ? '#ff2a1a' : '#ffb0a0';
+      ctx.fillRect(px(bombPos.x) - 3, pz(bombPos.z) - 3, 6, 6);
+    }
+    // teammates
+    for (const f of state.fighters) {
+      if (!f.alive || f.isPlayer || f.team !== player.team) continue;
+      ctx.fillStyle = '#5aa9e6';
+      ctx.beginPath();
+      ctx.arc(px(f.x), pz(f.z), 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // the player: a wedge pointing where they face (radar up = -z, and
+    // the facing angle on the map works out to exactly -yaw)
+    ctx.save();
+    ctx.translate(px(player.x), pz(player.z));
+    ctx.rotate(-player.yaw);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(0, -5.5);
+    ctx.lineTo(4, 4.5);
+    ctx.lineTo(-4, 4.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   function boardRows(state) {
@@ -120,6 +198,7 @@ export function createHud(onBuy) {
       if (player.kit) nades.push('✂ kit');
       els.hint.textContent = nades.join('   ');
       els.scope.style.display = player.scoped ? 'block' : 'none';
+      drawRadar(state, player);
     }
     els.timer.textContent = state.phase === PHASE.PLANTED ? '💣 ' + fmtTime(state.phaseT) : fmtTime(state.phaseT);
     els.timer.style.color = state.phase === PHASE.PLANTED ? '#ff5f4a' : '';
@@ -154,5 +233,5 @@ export function createHud(onBuy) {
     if (show) els.tabBoard.innerHTML = boardRows(state);
   }
 
-  return { els, banner, addFeed, renderBuy, update, flashHitmarker, showTabBoard };
+  return { els, banner, addFeed, addRadio, renderBuy, update, flashHitmarker, showTabBoard };
 }

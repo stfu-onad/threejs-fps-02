@@ -36,6 +36,13 @@
   #killfeed { position: absolute; right: 22px; top: 70px; text-align: right; font-size: 14px; }
   .feed-line { background: rgba(8,10,14,0.55); padding: 3px 9px; margin-bottom: 4px;
     border-right: 3px solid #f2a33c; transition: opacity 0.8s; }
+  .feed-line.radio { border-right-color: #7fb8d9; color: #cfe6f2; font-style: italic; }
+  #radar { position: absolute; left: 22px; top: 14px; border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(8,12,16,0.55); }
+  #dmgdir { position: fixed; left: 50%; top: 50%; width: 190px; height: 190px;
+    margin: -95px 0 0 -95px; border-radius: 50%; pointer-events: none; opacity: 0;
+    border: 5px solid transparent; border-top-color: rgba(255,64,32,0.85);
+    transition: opacity 0.25s; }
   #banner { position: absolute; left: 50%; top: 30%; transform: translateX(-50%);
     text-align: center; opacity: 0; transition: opacity 0.4s; }
   #banner-title { font-size: 44px; font-weight: 800; letter-spacing: 3px; text-shadow: 0 3px 10px #000; }
@@ -130,7 +137,8 @@
     .bigbtn { padding: 13px 18px; font-size: 16px; }
     #buymenu { width: 92vw; padding: 12px; }
     #scoretab, #over-board { width: 92vw; }
-    #vitals { left: 14px; bottom: auto; top: 86px; width: 170px; }
+    #vitals { left: 14px; bottom: auto; top: 108px; width: 170px; }
+    #radar { left: 14px; top: 10px; width: 104px; height: 90px; }
     #gunbox { right: 14px; bottom: auto; top: 86px; }
     #timer { font-size: 24px; }
     #channel { bottom: 240px; width: 70vw; }
@@ -139,6 +147,7 @@
 </head>
 <body>
 <div id="hud" style="display:none">
+  <canvas id="radar" width="148" height="128"></canvas>
   <div id="crosshair">＋</div>
   <div id="hitmarker">✕</div>
   <div id="topbar">
@@ -172,6 +181,7 @@
 
 <div id="scoretab"><div id="tab-board"></div></div>
 <div id="scope"></div>
+<div id="dmgdir"></div>
 <div id="dmg"></div>
 <div id="flashfx"></div>
 <div id="locktip">CLICK TO AIM — pointer locked while the round is live</div>

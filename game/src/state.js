@@ -39,6 +39,7 @@ export function createState() {
       channelT: 0,
     },
     noise: [],                 // recent gunfire events {x, z, t} bots can hear
+    radio: [],                 // queued team radio callouts {name, text} for the HUD feed
     time: 0,                   // match clock, seconds of simulated time
     roundResult: null,         // {winner, reason} for the end banner
     matchWinner: null,

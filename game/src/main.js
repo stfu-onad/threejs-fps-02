@@ -185,7 +185,7 @@ const hud = createHud((itemId) => {
     SFX.playBuy();
     hud.renderBuy(state, player);
   }
-});
+}, mapData);
 
 document.getElementById('btn-wardens').addEventListener('click', () => startMatch(TEAM.WARDENS));
 document.getElementById('btn-jackals').addEventListener('click', () => startMatch(TEAM.JACKALS));
@@ -253,13 +253,28 @@ function processEvents(events) {
         spawnParticles(ev.x, ev.y, ev.z, 4, 0xd8c9a8, 2.2, 1.4);
         break;
       case 'hit':
-        if (ev.attacker && ev.attacker.isPlayer) hud.flashHitmarker(false);
+        if (ev.attacker && ev.attacker.isPlayer) {
+          hud.flashHitmarker(false);
+          SFX.playHitmarker(false);
+        }
         if (ev.victim.isPlayer) {
           SFX.playHurt();
           shake = Math.max(shake, 0.12);
           const d = document.getElementById('dmg');
           d.style.opacity = '1';
           setTimeout(() => { d.style.opacity = '0'; }, 160);
+          // directional damage arc: points from the player toward the
+          // shooter, in screen space (0 = ahead, clockwise = right)
+          if (ev.attacker) {
+            const arc = document.getElementById('dmgdir');
+            const a = Math.atan2(-(ev.attacker.x - player.x), -(ev.attacker.z - player.z));
+            let rel = a - player.yaw;
+            while (rel > Math.PI) rel -= Math.PI * 2;
+            while (rel < -Math.PI) rel += Math.PI * 2;
+            arc.style.transform = `rotate(${-rel * 180 / Math.PI}deg)`;
+            arc.style.opacity = '1';
+            setTimeout(() => { arc.style.opacity = '0'; }, 450);
+          }
         }
         break;
       case 'kill': {
@@ -268,7 +283,10 @@ function processEvents(events) {
         const head = ev.zone === 'head' ? ' ⌖' : '';
         const an = ev.attacker ? ev.attacker.name : '—';
         hud.addFeed(`<b>${an}</b> ▸ ${wname}${head} ▸ <b>${ev.victim.name}</b>`);
-        if (ev.attacker && ev.attacker.isPlayer) hud.flashHitmarker(true);
+        if (ev.attacker && ev.attacker.isPlayer) {
+          hud.flashHitmarker(true);
+          SFX.playHitmarker(true);
+        }
         if (ev.victim.isPlayer) shake = Math.max(shake, 0.3);
         break;
       }
@@ -355,6 +373,12 @@ function step(dt) {
   }
   processEvents(events);
 
+  // team radio callouts the bots queued this step
+  while (state.radio.length) {
+    const r = state.radio.shift();
+    hud.addRadio(r.name, r.text);
+  }
+
   // phase-change announcements
   if (state.phase === PHASE.END && prevPhase !== PHASE.END && state.roundResult) {
     const w = state.roundResult.winner;
@@ -379,6 +403,7 @@ function step(dt) {
 
 // --------------------------------------------------------------- camera
 const camTarget = new THREE.Vector3();
+let swayX = 0, swayY = 0, lastYaw = 0, lastPitch = 0;
 function updateCamera(dt) {
   if (state.phase === PHASE.MENU || shotMode === 'start') {
     const t = performance.now() / 1000 * 0.05;
@@ -419,10 +444,21 @@ function updateCamera(dt) {
       viewmodel.visible = true;
       const reloading = player.reloadingUntil > state.time;
       const kickBack = player.flashUntil > state.time ? 0.06 : 0;
-      viewmodel.position.set(0.24, -0.22 + bobY * 0.6 + (reloading ? -0.09 : 0), -0.45 + kickBack);
+      // look sway: the gun lags a fast turn by a few centimetres, then
+      // settles — pure presentation, the sim never sees it
+      let dYaw = player.yaw - lastYaw;
+      while (dYaw > Math.PI) dYaw -= Math.PI * 2;
+      while (dYaw < -Math.PI) dYaw += Math.PI * 2;
+      const dPitch = player.pitch - lastPitch;
+      swayX += (Math.max(-0.05, Math.min(0.05, dYaw * -0.45)) - swayX) * Math.min(1, dt * 11);
+      swayY += (Math.max(-0.03, Math.min(0.03, dPitch * 0.4)) - swayY) * Math.min(1, dt * 11);
+      viewmodel.position.set(0.24 + swayX, -0.22 + bobY * 0.6 + swayY + (reloading ? -0.09 : 0), -0.45 + kickBack);
       viewmodel.rotation.x = reloading ? -0.5 : (player.flashUntil > state.time ? 0.05 : 0);
+      viewmodel.rotation.z = swayX * 1.4;
       viewmodel.visible = !player.scoped;
     }
+    lastYaw = player.yaw;
+    lastPitch = player.pitch;
   } else {
     // dead: rise to an overview of the bomb site or mid yard
     const focus = state.bomb.planted ? state.bomb : { x: 0, z: -4 };
@@ -433,6 +469,7 @@ function updateCamera(dt) {
 }
 
 // ------------------------------------------------------------ shot modes
+let shotLateFeed = null;
 function setupShot(mode, seed) {
   const srng = new Rng(seed * 7919 + 13);
   if (mode === 'start') {
@@ -470,26 +507,42 @@ function setupShot(mode, seed) {
     vex.x = -21; vex.z = -13.5; vex.yaw = 1.1;
     const hollis = byName('Hollis');
     hollis.x = -15; hollis.z = -24; hollis.yaw = 1.8;
-    hud.addFeed('<b>Rook</b> ▸ VK-7 Rifle ▸ <b>Marsh</b>');
-    hud.addFeed('<b>YOU</b> ▸ VK-7 Rifle ⌖ ▸ <b>Nyx</b>');
-  } else if (mode === 'end') {
+    // a smoke wall the attackers threw across the A door approach, still
+    // up; Rook's muzzle flash a second ago is what the radar is showing
+    state.smokes = [{ x: -29, z: -15, r: 3.4, until: 1e9 }];
+    state.noise.push({ x: -28, z: -21, t: 0, team: TEAM.JACKALS });
+    // feed lines fade after ~5 s of real time but a headless render needs
+    // longer than that to reach frame 26 — they are added late, below
+    shotLateFeed = () => {
+      hud.addFeed('<b>Rook</b> ▸ VK-7 Rifle ▸ <b>Marsh</b>');
+      hud.addRadio('Vex', 'Contact — Bay A!');
+      hud.addFeed('<b>YOU</b> ▸ VK-7 Rifle ⌖ ▸ <b>Nyx</b>');
+    };
+  } else if (mode === 'defuse') {
+    // the clutch frame: bomb down on Bay B, the player on the wire with
+    // the channel bar running, a teammate holding the door angle and one
+    // attacker still up somewhere in the hall
     state.score.wardens = 4; state.score.jackals = 2;
     state.round = 7;
-    state.phase = PHASE.END; state.phaseT = 4;
-    state.roundResult = { winner: TEAM.WARDENS, reason: 'defused' };
+    state.phase = PHASE.PLANTED; state.phaseT = 23;
     state.bomb.planted = true; state.bomb.site = 'B';
     state.bomb.x = 26.4; state.bomb.z = -19.2;
-    // standing in the Bay B approach with a clear line onto the site:
-    // the defused bomb, a teammate covering, two attackers down
-    player.x = 24; player.z = -13.5; player.yaw = -0.4; player.pitch = -0.05;
-    player.money = 5200;
+    state.bomb.channelBy = player.id; state.bomb.channelKind = 'defuse';
+    state.bomb.channelT = 3.1; state.bomb.channelNeed = 5;
+    player.x = 25.1; player.z = -17.9; player.yaw = -0.75; player.pitch = -0.4;
+    player.crouch = true; player.kit = true; player.money = 5200;
+    player.hp = 64; player.armor = 100; player.helmet = true;
     const vex = byName('Vex');
-    vex.x = 24.5; vex.z = -16.5; vex.yaw = 2.9;
+    vex.x = 21.5; vex.z = -14.5; vex.yaw = -2.1;
     const rook = byName('Rook');
-    rook.x = 28.5; rook.z = -17; rook.alive = false; rook.hp = 0; rook.deathT = -2;
+    rook.x = 28.5; rook.z = -16.5; rook.alive = false; rook.hp = 0; rook.deathT = -2;
     const sable = byName('Sable');
-    sable.x = 24; sable.z = -22.5; sable.alive = false; sable.hp = 0; sable.deathT = -2;
-    hud.banner('ROUND WON', 'Wardens — Bomb defused', 999);
+    sable.x = 29.5; sable.z = -9.5; sable.yaw = 0.5;
+    hud.banner('BOMB PLANTED', 'Bay B — defuse in progress', 999);
+    shotLateFeed = () => {
+      hud.addRadio('Vex', 'On the wire — hold the door!');
+      hud.addFeed('<b>YOU</b> ▸ VK-7 Rifle ▸ <b>Rook</b>');
+    };
   }
   prevPhase = state.phase;
 }
@@ -507,6 +560,7 @@ renderer.setAnimationLoop(() => {
     // realistic value so the HUD reads like a real moment of a match
     if (state.phase === PHASE.BUY) state.phaseT = 9;
     if (state.phase === PHASE.END) state.phaseT = 4;
+    if (shotMode === 'defuse') state.phaseT = 23;
     if (shotMode === 'play' && player) {
       // a frozen firefight: fresh tracers both ways + muzzle light
       if (frames % 3 === 0) {
@@ -534,6 +588,7 @@ renderer.setAnimationLoop(() => {
       ? 'block' : 'none';
   renderer.render(scene, camera);
   frames++;
+  if (shotMode && frames === 24 && shotLateFeed) { shotLateFeed(); shotLateFeed = null; }
   if (shotMode && frames > 26) window.__shotReady = true;
 });
 
@@ -544,3 +599,7 @@ window.addEventListener('resize', () => {
 });
 
 if (shotMode) setupShot(shotMode, shotSeed);
+
+// exposed for the automated smoke/soak tests (and curious players in the
+// console): the one state store, read/write at your own risk
+window.__state = state;
