@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>COLDSTORE — a three.js tactical FPS</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #10131a;
+    font-family: "Segoe UI", system-ui, sans-serif; color: #eef1f4; }
+  canvas { display: block; }
+  .hidden { display: none !important; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-size: 22px; color: rgba(255,255,255,0.85); text-shadow: 0 0 4px #000; }
+  #hitmarker { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-size: 26px; opacity: 0; transition: opacity 0.08s; text-shadow: 0 0 4px #000; }
+  #topbar { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    text-align: center; }
+  #timer { font-size: 30px; font-weight: 700; letter-spacing: 2px; text-shadow: 0 2px 6px #000; }
+  #score { font-size: 15px; font-weight: 600; letter-spacing: 1px; opacity: 0.92; }
+  #round-label { font-size: 12px; letter-spacing: 2px; opacity: 0.75; }
+  #bomb-tag { margin-top: 4px; color: #ff5f4a; font-weight: 700; letter-spacing: 1px; display: none; }
+  #vitals { position: absolute; left: 26px; bottom: 24px; width: 250px; }
+  #hp-bar { height: 14px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.35); }
+  #hp-fill { height: 100%; width: 100%; background: #7dd069; transition: width 0.15s; }
+  #hp-text { font-size: 30px; font-weight: 700; text-shadow: 0 2px 5px #000; }
+  #armor-text { font-size: 14px; opacity: 0.9; height: 18px; }
+  #gunbox { position: absolute; right: 26px; bottom: 24px; text-align: right; }
+  #weapon-name { font-size: 15px; letter-spacing: 1px; opacity: 0.9; }
+  #ammo { font-size: 34px; font-weight: 700; text-shadow: 0 2px 5px #000; }
+  #money { color: #9fe870; font-size: 19px; font-weight: 700; }
+  #hint { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
+    font-size: 14px; opacity: 0.85; text-shadow: 0 1px 3px #000; }
+  #killfeed { position: absolute; right: 22px; top: 70px; text-align: right; font-size: 14px; }
+  .feed-line { background: rgba(8,10,14,0.55); padding: 3px 9px; margin-bottom: 4px;
+    border-right: 3px solid #f2a33c; transition: opacity 0.8s; }
+  #banner { position: absolute; left: 50%; top: 30%; transform: translateX(-50%);
+    text-align: center; opacity: 0; transition: opacity 0.4s; }
+  #banner-title { font-size: 44px; font-weight: 800; letter-spacing: 3px; text-shadow: 0 3px 10px #000; }
+  #banner-sub { font-size: 17px; opacity: 0.9; letter-spacing: 1px; }
+  #channel { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%);
+    width: 320px; text-align: center; display: none; }
+  #channel-label { font-size: 14px; letter-spacing: 2px; margin-bottom: 5px; text-shadow: 0 1px 3px #000; }
+  #channel-bar { height: 10px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.4); }
+  #channel-fill { height: 100%; width: 0%; background: #f2a33c; }
+  #scope { position: fixed; inset: 0; display: none; pointer-events: none;
+    background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.94) 31.5%); }
+  #dmg { position: fixed; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle at center, transparent 55%, rgba(200,30,20,0.5) 100%); }
+  #flashfx { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: #fff; }
+
+  /* ---------- menus ---------- */
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: linear-gradient(180deg, rgba(10,14,22,0.55), rgba(10,14,22,0.82)); }
+  .screen h1 { font-size: 64px; margin: 0; letter-spacing: 8px; font-weight: 800;
+    color: #f5f2ea; text-shadow: 0 4px 18px #000; }
+  .screen h1 .accent { color: #f2a33c; }
+  .screen p { max-width: 560px; line-height: 1.5; opacity: 0.92; font-size: 16px; }
+  .teamrow { display: flex; gap: 18px; margin-top: 14px; }
+  .bigbtn { pointer-events: auto; cursor: pointer; border: 2px solid rgba(255,255,255,0.4);
+    background: rgba(16,20,28,0.8); color: #eef1f4; padding: 16px 30px; font-size: 19px;
+    font-weight: 700; letter-spacing: 1px; }
+  .bigbtn:hover { border-color: #f2a33c; background: rgba(40,36,26,0.9); }
+  .bigbtn small { display: block; font-weight: 400; font-size: 13px; opacity: 0.8; margin-top: 4px; }
+  .controls { margin-top: 22px; font-size: 13.5px; opacity: 0.75; line-height: 1.7; }
+
+  /* ---------- buy menu ---------- */
+  #buymenu { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 620px; background: rgba(10,13,19,0.88); border: 1px solid rgba(255,255,255,0.25);
+    padding: 18px 22px; display: none; }
+  #buymenu h2 { margin: 0 0 4px; letter-spacing: 3px; font-size: 21px; }
+  #buy-money { color: #9fe870; font-weight: 700; margin-bottom: 12px; }
+  #buy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .buy-item { pointer-events: auto; cursor: pointer; text-align: left; font-size: 15px;
+    background: rgba(255,255,255,0.07); color: #eef1f4; border: 1px solid rgba(255,255,255,0.18);
+    padding: 9px 12px; }
+  .buy-item:hover { background: rgba(242,163,60,0.22); }
+  .buy-item.cant { opacity: 0.42; }
+  .buy-key { display: inline-block; min-width: 20px; text-align: center; background: #f2a33c;
+    color: #141414; font-weight: 800; border-radius: 3px; margin-right: 8px; }
+  .buy-price { float: right; color: #9fe870; font-weight: 700; }
+  #buy-hint { margin-top: 12px; font-size: 13px; opacity: 0.75; }
+
+  /* ---------- scoreboard ---------- */
+  #scoretab { position: fixed; left: 50%; top: 90px; transform: translateX(-50%);
+    width: 560px; background: rgba(10,13,19,0.9); border: 1px solid rgba(255,255,255,0.25);
+    padding: 14px 20px; display: none; }
+  .board-row { display: grid; grid-template-columns: 1.6fr 1fr 0.8fr 0.6fr; padding: 4px 6px; font-size: 15px; }
+  .board-row.w { border-left: 3px solid #2e7fb8; }
+  .board-row.j { border-left: 3px solid #c8542a; }
+  .board-row.dead { opacity: 0.45; }
+  #over-board { width: 560px; margin-top: 16px; background: rgba(10,13,19,0.65); padding: 10px 14px; }
+  #locktip { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
+    background: rgba(8,10,14,0.75); padding: 8px 18px; font-size: 15px; letter-spacing: 1px; display: none; }
+</style>
+</head>
+<body>
+<div id="hud" style="display:none">
+  <div id="crosshair">＋</div>
+  <div id="hitmarker">✕</div>
+  <div id="topbar">
+    <div id="timer">1:40</div>
+    <div id="score">WARDENS 0 — 0 JACKALS</div>
+    <div id="round-label">ROUND 1</div>
+    <div id="bomb-tag">BOMB PLANTED</div>
+  </div>
+  <div id="vitals">
+    <div id="armor-text"></div>
+    <div id="hp-text">100</div>
+    <div id="hp-bar"><div id="hp-fill"></div></div>
+  </div>
+  <div id="gunbox">
+    <div id="weapon-name">P9 Sidearm</div>
+    <div id="ammo">12 / 96</div>
+    <div id="money">$800</div>
+  </div>
+  <div id="hint"></div>
+  <div id="killfeed"></div>
+  <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+  <div id="channel"><div id="channel-label"></div><div id="channel-bar"><div id="channel-fill"></div></div></div>
+</div>
+
+<div id="buymenu">
+  <h2>BUY EQUIPMENT</h2>
+  <div id="buy-money">$800</div>
+  <div id="buy-grid"></div>
+  <div id="buy-hint">Click an item or press its number key. The round goes live when the timer ends.</div>
+</div>
+
+<div id="scoretab"><div id="tab-board"></div></div>
+<div id="scope"></div>
+<div id="dmg"></div>
+<div id="flashfx"></div>
+<div id="locktip">CLICK TO AIM — pointer locked while the round is live</div>
+
+<div id="menu" class="screen">
+  <h1>COLD<span class="accent">STORE</span></h1>
+  <p>A round-based tactical FPS in a dusk container terminal. Two bomb sites,
+     one bomb, money between rounds. Stop moving to shoot straight.</p>
+  <div class="teamrow">
+    <button class="bigbtn" id="btn-wardens">PLAY WARDENS<small>Defend Bay A and Bay B</small></button>
+    <button class="bigbtn" id="btn-jackals">PLAY JACKALS<small>Plant the bomb</small></button>
+  </div>
+  <div class="controls">
+    WASD move · mouse aim · click fire · R reload · Ctrl crouch · Space jump<br>
+    1/2 weapons · 3/4/5 grenades · E plant / defuse · Tab scoreboard
+  </div>
+</div>
+
+<div id="matchover" class="screen" style="display:none">
+  <h1 id="over-title">VICTORY</h1>
+  <div id="over-board"></div>
+  <div class="teamrow"><button class="bigbtn" id="btn-again">PLAY AGAIN</button></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
