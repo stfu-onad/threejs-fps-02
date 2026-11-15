@@ -27,6 +27,7 @@ export function updatePlayer(state, f, input, colliders, rng, events, now, dt) {
   if (input.keys.has('KeyS')) iz += 1;
   if (input.keys.has('KeyA')) ix -= 1;
   if (input.keys.has('KeyD')) ix += 1;
+  if (input.touchMove) { ix += input.touchMove.x; iz += input.touchMove.y; }
   const len = Math.hypot(ix, iz) || 1;
   ix /= len; iz /= len;
   const cos = Math.cos(f.yaw), sin = Math.sin(f.yaw);

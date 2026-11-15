@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>COLDSTORE — a three.js tactical FPS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>PORT OF SABLE — a three.js tactical FPS</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #10131a;
-    font-family: "Segoe UI", system-ui, sans-serif; color: #eef1f4; }
+    font-family: "Segoe UI", system-ui, sans-serif; color: #eef1f4; touch-action: none; }
   canvas { display: block; }
   .hidden { display: none !important; }
 
@@ -95,6 +95,46 @@
   #over-board { width: 560px; margin-top: 16px; background: rgba(10,13,19,0.65); padding: 10px 14px; }
   #locktip { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
     background: rgba(8,10,14,0.75); padding: 8px 18px; font-size: 15px; letter-spacing: 1px; display: none; }
+
+  /* ---------- touch controls (shown only after the first touch) ---------- */
+  #touch-ui { position: fixed; inset: 0; pointer-events: none; display: none; }
+  body.touch #touch-ui { display: block; }
+  body.touch.buying #touch-ui { display: none; }
+  body.touch #locktip { display: none !important; }
+  #joy { position: absolute; left: 26px; bottom: 118px; width: 118px; height: 118px;
+    border-radius: 50%; border: 2px solid rgba(255,255,255,0.35);
+    background: rgba(10,13,19,0.35); pointer-events: auto; }
+  #joy-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px;
+    border-radius: 50%; background: rgba(255,255,255,0.35);
+    transform: translate(-50%, -50%); }
+  .tbtn { position: absolute; pointer-events: auto; user-select: none; -webkit-user-select: none;
+    display: flex; align-items: center; justify-content: center; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.35); background: rgba(10,13,19,0.45);
+    color: #eef1f4; font-weight: 700; letter-spacing: 1px; }
+  .tbtn.on { background: rgba(242,163,60,0.55); border-color: #f2a33c; }
+  #btn-fire { right: 30px; bottom: 128px; width: 88px; height: 88px; font-size: 17px;
+    background: rgba(200,60,40,0.45); }
+  #btn-aim { right: 134px; bottom: 118px; width: 58px; height: 58px; font-size: 12px; }
+  #btn-jump { right: 34px; bottom: 232px; width: 58px; height: 58px; font-size: 12px; }
+  #btn-crouch { right: 106px; bottom: 196px; width: 58px; height: 58px; font-size: 12px; }
+  #btn-act { right: 140px; bottom: 262px; width: 62px; height: 62px; font-size: 13px;
+    background: rgba(242,163,60,0.4); }
+  #btn-reload { right: 216px; bottom: 128px; width: 52px; height: 52px; font-size: 11px; }
+  #btn-swap { right: 216px; bottom: 196px; width: 52px; height: 52px; font-size: 11px; }
+  #btn-nade { right: 62px; bottom: 306px; width: 52px; height: 52px; font-size: 11px; }
+
+  /* ---------- small screens ---------- */
+  @media (max-width: 700px) {
+    .screen h1 { font-size: 40px; letter-spacing: 4px; }
+    .screen p { font-size: 14px; padding: 0 18px; }
+    .bigbtn { padding: 13px 18px; font-size: 16px; }
+    #buymenu { width: 92vw; padding: 12px; }
+    #scoretab, #over-board { width: 92vw; }
+    #vitals { left: 14px; bottom: auto; top: 86px; width: 170px; }
+    #gunbox { right: 14px; bottom: auto; top: 86px; }
+    #timer { font-size: 24px; }
+    #channel { bottom: 240px; width: 70vw; }
+  }
 </style>
 </head>
 <body>
@@ -136,8 +176,20 @@
 <div id="flashfx"></div>
 <div id="locktip">CLICK TO AIM — pointer locked while the round is live</div>
 
+<div id="touch-ui">
+  <div id="joy"><div id="joy-knob"></div></div>
+  <div class="tbtn" id="btn-fire">FIRE</div>
+  <div class="tbtn" id="btn-aim">AIM</div>
+  <div class="tbtn" id="btn-jump">JUMP</div>
+  <div class="tbtn" id="btn-crouch">DUCK</div>
+  <div class="tbtn" id="btn-act">USE</div>
+  <div class="tbtn" id="btn-reload">RLD</div>
+  <div class="tbtn" id="btn-swap">SWAP</div>
+  <div class="tbtn" id="btn-nade">NADE</div>
+</div>
+
 <div id="menu" class="screen">
-  <h1>COLD<span class="accent">STORE</span></h1>
+  <h1>PORT OF <span class="accent">SABLE</span></h1>
   <p>A round-based tactical FPS in a dusk container terminal. Two bomb sites,
      one bomb, money between rounds. Stop moving to shoot straight.</p>
   <div class="teamrow">
@@ -146,7 +198,8 @@
   </div>
   <div class="controls">
     WASD move · mouse aim · click fire · R reload · Ctrl crouch · Space jump<br>
-    1/2 weapons · 3/4/5 grenades · E plant / defuse · Tab scoreboard
+    1/2 weapons · 3/4/5 grenades · E plant / defuse · Tab scoreboard<br>
+    Touch: left stick to move, drag the right side to aim, on-screen buttons for the rest
   </div>
 </div>
 

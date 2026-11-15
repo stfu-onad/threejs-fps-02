@@ -198,7 +198,7 @@ window.addEventListener('keyup', (e) => {
 });
 renderer.domElement.addEventListener('click', () => {
   if ((state.phase === PHASE.LIVE || state.phase === PHASE.PLANTED || state.phase === PHASE.END)
-      && !input.locked && !shotMode) input.lockPointer();
+      && !input.locked && !input.touchMode && !shotMode) input.lockPointer();
 });
 
 function startMatch(team) {

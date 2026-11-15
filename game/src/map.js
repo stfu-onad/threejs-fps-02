@@ -1,4 +1,4 @@
-// map.js — the Coldstore Terminal: geometry, colliders, waypoints, spawns.
+// map.js — the Port of Sable terminal: geometry, colliders, waypoints, spawns.
 // One job: build the original map (a dusk container port with a loading
 // dock as site A and a freezer hall as site B) and hand the simulation the
 // data it needs: box colliders for physics, a waypoint graph for the bots,
@@ -80,6 +80,8 @@ function signTexture(text, sub, color) {
     g.fillStyle = '#23262c'; g.fillRect(0, 0, w, h);
     g.strokeStyle = color; g.lineWidth = 8; g.strokeRect(8, 8, w - 16, h - 16);
     g.fillStyle = color; g.font = 'bold 64px system-ui, sans-serif';
+    const tw = g.measureText(text).width;
+    if (tw > w - 60) g.font = `bold ${Math.floor(64 * (w - 60) / tw)}px system-ui, sans-serif`;
     g.textAlign = 'center'; g.fillText(text, w / 2, 92);
     g.fillStyle = 'rgba(235,235,230,0.8)'; g.font = '28px system-ui, sans-serif';
     g.fillText(sub, w / 2, 146);
@@ -202,8 +204,8 @@ export function buildMap(scene) {
   // ---- containers: the lanes of the yard. Each is one collider however
   // high it is stacked; the second level is pure silhouette.
   const contMats = [
-    ['#2f5f8a', 'COLDSTORE LINE'], ['#a5502c', 'PORT OF SABLE'], ['#3f7355', 'NORTH FREIGHT'],
-    ['#707880', 'CSLU HEAVY'], ['#2f5f8a', 'COLDSTORE LINE'], ['#a5502c', 'PORT OF SABLE'],
+    ['#2f5f8a', 'SABLE LINE'], ['#a5502c', 'PORT OF SABLE'], ['#3f7355', 'NORTH FREIGHT'],
+    ['#707880', 'CSLU HEAVY'], ['#2f5f8a', 'SABLE LINE'], ['#a5502c', 'PORT OF SABLE'],
   ].map(([base, label]) => new THREE.MeshStandardMaterial({
     map: containerTexture(base, label), roughness: 0.75, metalness: 0.25,
   }));
@@ -250,7 +252,7 @@ export function buildMap(scene) {
   }
   sign(-27, 4.4, -25.7, 0, signTexture('BAY A', 'LOADING DOCK', '#f2a33c'));
   sign(27, 4.4, -25.7, 0, signTexture('BAY B', 'FREEZER HALL', '#39c2b0'));
-  sign(0, 4.6, -35.9, 0, signTexture('COLDSTORE', 'TERMINAL 7 — EST. 1986', '#e8e4da'));
+  sign(0, 4.6, -35.9, 0, signTexture('PORT OF SABLE', 'TERMINAL 7 — EST. 1986', '#e8e4da'));
 
   // ---- floodlight poles (visual) — their lights live in lights.js setup
   const lampMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffc37a, emissiveIntensity: 2.2 });

@@ -97,6 +97,9 @@ export function createHud(onBuy) {
     els.menu.style.display = state.phase === PHASE.MENU ? 'flex' : 'none';
     els.over.style.display = state.phase === PHASE.OVER ? 'flex' : 'none';
     els.buy.style.display = state.phase === PHASE.BUY ? 'block' : 'none';
+    // the touch buttons sit over the buy grid on small screens: hide them
+    // while the menu is up (buying itself is tap-driven)
+    document.body.classList.toggle('buying', state.phase === PHASE.BUY);
     if (!inGame && state.phase !== PHASE.OVER) return;
 
     if (player) {

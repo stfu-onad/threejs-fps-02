@@ -1,4 +1,4 @@
-// COLDSTORE — a three.js tactical FPS (Node 22, standard library only).
+// PORT OF SABLE — a three.js tactical FPS (Node 22, standard library only).
 // The game itself is this directory's game/ folder: plain static files the
 // browser loads as ES modules, three.js 0.187.0 vendored under
 // game/vendor/three/ and wired through an import map. This program hands
