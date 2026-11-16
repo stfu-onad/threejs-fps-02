@@ -36,6 +36,25 @@ function groundTexture() {
       g.fillStyle = `rgba(${20 + Math.random() * 40},${22 + Math.random() * 40},${26 + Math.random() * 40},0.25)`;
       g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
     }
+    // worn patches, oil stains and cracks — the yard has worked hard
+    for (let i = 0; i < 26; i++) {
+      g.fillStyle = `rgba(18,19,22,${0.05 + Math.random() * 0.13})`;
+      g.beginPath();
+      g.ellipse(Math.random() * w, Math.random() * h, 20 + Math.random() * 70, 12 + Math.random() * 40, Math.random() * 3, 0, 7);
+      g.fill();
+    }
+    g.strokeStyle = 'rgba(16,17,20,0.5)'; g.lineWidth = 1.6;
+    for (let i = 0; i < 22; i++) {
+      let x = Math.random() * w, y = Math.random() * h;
+      g.beginPath(); g.moveTo(x, y);
+      for (let s = 0; s < 5; s++) { x += (Math.random() - 0.5) * 90; y += (Math.random() - 0.5) * 90; g.lineTo(x, y); }
+      g.stroke();
+    }
+    // faded painted arrows and bay numbers under the grime
+    g.fillStyle = 'rgba(226,222,205,0.20)';
+    g.font = 'bold 90px system-ui, sans-serif';
+    g.fillText('07', w * 0.72, h * 0.3);
+    g.fillText('SLOW', w * 0.08, h * 0.82);
     // lane lines
     g.strokeStyle = 'rgba(230,230,220,0.5)'; g.lineWidth = 4; g.setLineDash([26, 20]);
     g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h); g.stroke();
@@ -72,6 +91,20 @@ function containerTexture(base, label) {
       const x = Math.random() * w;
       g.fillRect(x, Math.random() * 40, 3 + Math.random() * 5, 40 + Math.random() * 120);
     }
+    // heavy rust bloom along the bottom edge + scratches and dent shading
+    const rust = g.createLinearGradient(0, h - 60, 0, h);
+    rust.addColorStop(0, 'rgba(74,38,16,0)'); rust.addColorStop(1, 'rgba(74,38,16,0.55)');
+    g.fillStyle = rust; g.fillRect(0, h - 60, w, 60);
+    for (let i = 0; i < 30; i++) {
+      g.fillStyle = `rgba(235,235,230,${0.05 + Math.random() * 0.1})`;
+      g.fillRect(Math.random() * w, Math.random() * h, 14 + Math.random() * 60, 1.6);
+    }
+    for (let i = 0; i < 10; i++) {
+      g.fillStyle = 'rgba(0,0,0,0.13)';
+      g.beginPath();
+      g.ellipse(Math.random() * w, Math.random() * h, 16 + Math.random() * 30, 8 + Math.random() * 16, 0, 0, 7);
+      g.fill();
+    }
   });
 }
 
@@ -98,6 +131,12 @@ function wallTexture() {
     for (let i = 0; i < 1600; i++) {
       g.fillStyle = 'rgba(0,0,0,0.10)';
       g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    }
+    // rain grime running down from the panel seams
+    for (let i = 0; i < 34; i++) {
+      g.fillStyle = 'rgba(24,26,30,0.16)';
+      const x = Math.random() * w;
+      g.fillRect(x, 0, 2 + Math.random() * 4, 60 + Math.random() * 150);
     }
     g.fillStyle = 'rgba(20,22,26,0.55)'; g.fillRect(0, h - 26, w, 26);
   });
@@ -145,6 +184,31 @@ export function buildMap(scene) {
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   group.add(ground);
+
+  // ---- sky dome: a painted dusk gradient with a low sun glow and a
+  // band of cloud, so the horizon reads as sunset, not flat colour
+  {
+    const skyTex = canvasTexture(1024, 512, (g, w, h) => {
+      const grad = g.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#1d2a44'); grad.addColorStop(0.42, '#3a4a6b');
+      grad.addColorStop(0.66, '#8a5a44'); grad.addColorStop(0.8, '#d98a4a');
+      grad.addColorStop(0.88, '#e8a35c'); grad.addColorStop(1, '#5a4636');
+      g.fillStyle = grad; g.fillRect(0, 0, w, h);
+      const sun = g.createRadialGradient(w * 0.22, h * 0.8, 8, w * 0.22, h * 0.8, 190);
+      sun.addColorStop(0, 'rgba(255,214,150,0.95)'); sun.addColorStop(0.25, 'rgba(255,170,90,0.45)');
+      sun.addColorStop(1, 'rgba(255,150,70,0)');
+      g.fillStyle = sun; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 46; i++) { // cloud streaks catching the light
+        g.fillStyle = `rgba(${30 + Math.random() * 40},${26 + Math.random() * 26},${40 + Math.random() * 30},${0.10 + Math.random() * 0.16})`;
+        const y = h * (0.18 + Math.random() * 0.55);
+        g.beginPath(); g.ellipse(Math.random() * w, y, 60 + Math.random() * 170, 4 + Math.random() * 9, 0, 0, 7); g.fill();
+      }
+    });
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(320, 24, 14),
+      new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false }));
+    dome.position.y = -6;
+    group.add(dome);
+  }
 
   // painted site circles
   for (const [sx, sz, letter, col] of [[-27, -20, 'A', '#f2a33c'], [27, -20, 'B', '#39c2b0']]) {
@@ -243,6 +307,47 @@ export function buildMap(scene) {
   const beam = box(0, -9, 38, 1.4, 1.6, craneMat, { y: 12.2, collide: false });
   beam.castShadow = true;
 
+  // ---- yard dressing: barrels, pallets, a cable spool and crates in
+  // the dead corners — real cover stays exactly as the colliders say,
+  // these sit against walls where nobody fights through them
+  {
+    const barrelGeo = new THREE.CylinderGeometry(0.31, 0.31, 0.92, 10);
+    const barrelMats = [0x707880, 0xa5502c, 0x2f5f8a].map((c) =>
+      new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, metalness: 0.35 }));
+    let bi = 0;
+    for (const [bx, bz] of [[-43, 30], [-42.2, 30.6], [-42.6, 29.2], [43.5, 28], [42.8, 28.7], [-43, -33.5], [8.5, 33.5], [9.3, 33.9]]) {
+      const b = new THREE.Mesh(barrelGeo, barrelMats[bi++ % 3]);
+      b.position.set(bx, 0.46, bz);
+      b.castShadow = true;
+      group.add(b);
+    }
+    const palletMat = new THREE.MeshStandardMaterial({ color: 0x8a6f4d, roughness: 0.95 });
+    for (const [px, pz, ry] of [[-44, 8, 0.4], [44.5, -20, 0.2], [-6, 34, 0], [20, 34.2, 0.7]]) {
+      for (let s = 0; s < 3; s++) {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.13, 1.4), palletMat);
+        p.position.set(px, 0.08 + s * 0.15, pz);
+        p.rotation.y = ry + s * 0.12;
+        group.add(p);
+      }
+    }
+    const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.7, 14), palletMat);
+    spool.rotation.z = Math.PI / 2;
+    spool.position.set(44, 0.85, 12);
+    group.add(spool);
+    // sagging cables strung from the crane beam to the lamp poles
+    const cableMat = new THREE.MeshBasicMaterial({ color: 0x14161a });
+    for (const [x0, x1, z] of [[-18, -27, -8.6], [18, 27, -8.6], [-18, -8, -9.4]]) {
+      for (let s = 0; s < 6; s++) {
+        const t0 = s / 6, t1 = (s + 1) / 6;
+        const sag = (t) => 12.6 - Math.sin(t * Math.PI) * 1.5;
+        const seg = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1 - x0) / 6 + 0.05, 0.05, 0.05), cableMat);
+        seg.position.set(x0 + (x1 - x0) * (t0 + t1) / 2, sag((t0 + t1) / 2), z);
+        seg.rotation.z = Math.atan2(sag(t1) - sag(t0), (x1 - x0) / 6) * Math.sign(x1 - x0);
+        group.add(seg);
+      }
+    }
+  }
+
   // ---- signs
   function sign(x, y, z, rotY, tex) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2.4),
@@ -256,15 +361,38 @@ export function buildMap(scene) {
 
   // ---- floodlight poles (visual) — their lights live in lights.js setup
   const lampMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffc37a, emissiveIntensity: 2.2 });
+  // one tired floodlight gets its own material so main.js can flicker it
+  const flickerMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffc37a, emissiveIntensity: 2.2 });
   const poleMat = mats.darkMetal;
   const lampPositions = [];
-  for (const [lx, lz] of [[-27, -8], [27, -8], [-8, 22], [12, 22], [0, -14]]) {
+  [[-27, -8], [27, -8], [-8, 22], [12, 22], [0, -14]].forEach(([lx, lz], i) => {
     box(lx, lz, 0.35, 0.35, 8.5, poleMat, { collide: false });
-    const head = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.3, 0.6), lampMat);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.3, 0.6), i === 4 ? flickerMat : lampMat);
     head.position.set(lx, 8.6, lz);
     group.add(head);
     lampPositions.push([lx, lz]);
+  });
+
+  // ---- a skein of harbour birds crossing the dusk, far and cheap:
+  // two triangles per bird, flapped by main.js from this group
+  const birds = new THREE.Group();
+  {
+    const birdMat = new THREE.MeshBasicMaterial({ color: 0x1c222e, side: THREE.DoubleSide, fog: false });
+    const wingGeo = new THREE.BufferGeometry();
+    wingGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1.1, 0.28, 0.3, 1.1, 0.28, -0.3]), 3));
+    wingGeo.computeVertexNormals();
+    for (let i = 0; i < 6; i++) {
+      const bird = new THREE.Group();
+      const wl = new THREE.Mesh(wingGeo, birdMat);
+      const wr = new THREE.Mesh(wingGeo, birdMat);
+      wr.rotation.y = Math.PI;
+      bird.add(wl); bird.add(wr);
+      bird.position.set(-140 + i * 7, 34 + (i % 3) * 2.4, -70 - i * 5);
+      bird.userData.phase = i * 1.3;
+      birds.add(bird);
+    }
   }
+  group.add(birds);
 
   // distant silhouettes outside the walls, for the skyline in screenshots
   const silMat = new THREE.MeshBasicMaterial({ color: 0x232c3a });
@@ -347,7 +475,7 @@ export function buildMap(scene) {
     waypoints[b].links.push(a);
   }
 
-  return { colliders, waypoints, spawns, sites, group };
+  return { colliders, waypoints, spawns, sites, group, flickerMat, birds, lampLightPos: lampPositions[4] };
 }
 
 // Breadth-first shortest path over the waypoint graph; returns the list of

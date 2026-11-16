@@ -36,6 +36,9 @@ function noise() {
 }
 
 // vol: 0..1 loudness after distance scaling (the caller computes it).
+// A shot is three layers: a supersonic snap (band-passed noise, very
+// short), the body (low-passed noise) and a low thump — plus a short
+// yard echo so distance reads in the sound, not just the volume.
 export function playShot(defId, vol) {
   if (!ctx || vol <= 0.01) return;
   const t = ctx.currentTime;
@@ -49,6 +52,24 @@ export function playShot(defId, vol) {
   env(g, t, 0.004, peak, defId === 'p9' ? 0.09 : 0.13);
   src.connect(filter); filter.connect(g); g.connect(master);
   src.start(t); src.stop(t + 0.25);
+  // snap
+  const snap = ctx.createBufferSource();
+  snap.buffer = noise();
+  const sf = ctx.createBiquadFilter();
+  sf.type = 'bandpass'; sf.frequency.value = 2100; sf.Q.value = 0.7;
+  const sg = ctx.createGain();
+  env(sg, t, 0.002, 0.4 * vol, 0.045);
+  snap.connect(sf); sf.connect(sg); sg.connect(master);
+  snap.start(t); snap.stop(t + 0.08);
+  // echo off the container stacks
+  const echo = ctx.createBufferSource();
+  echo.buffer = noise();
+  const ef = ctx.createBiquadFilter();
+  ef.type = 'lowpass'; ef.frequency.value = 900;
+  const eg = ctx.createGain();
+  env(eg, t + 0.11, 0.01, 0.13 * vol, 0.16);
+  echo.connect(ef); ef.connect(eg); eg.connect(master);
+  echo.start(t + 0.11); echo.stop(t + 0.45);
   // low thump under the crack
   const osc = ctx.createOscillator();
   osc.type = 'triangle';
@@ -92,6 +113,61 @@ export function playExplosion(vol) {
   env(g, t, 0.006, 0.95 * vol, 0.7);
   src.connect(f); f.connect(g); g.connect(master);
   src.start(t); src.stop(t + 0.9);
+  // sub-bass drop and a long rumble tail under the blast
+  const sub = ctx.createOscillator();
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(96, t);
+  sub.frequency.exponentialRampToValueAtTime(28, t + 0.55);
+  const sgb = ctx.createGain();
+  env(sgb, t, 0.008, 0.8 * vol, 0.6);
+  sub.connect(sgb); sgb.connect(master);
+  sub.start(t); sub.stop(t + 0.8);
+  const rum = ctx.createBufferSource();
+  rum.buffer = noise();
+  const rf = ctx.createBiquadFilter();
+  rf.type = 'lowpass'; rf.frequency.value = 240;
+  const rg = ctx.createGain();
+  env(rg, t + 0.15, 0.05, 0.3 * vol, 1.1);
+  rum.connect(rf); rf.connect(rg); rg.connect(master);
+  rum.start(t + 0.15); rum.stop(t + 1.6);
+}
+
+// ------------------------------------------------------------- ambience
+// The harbour under the fight: looped wind through a slow-breathing
+// filter, water against the dock, and a gull every so often. Started
+// once from initAudio's first user gesture (startMatch calls it).
+let ambientOn = false;
+export function startAmbient() {
+  if (!ctx || ambientOn) return;
+  ambientOn = true;
+  const wind = ctx.createBufferSource();
+  wind.buffer = noiseBuffer(3);
+  wind.loop = true;
+  const wf = ctx.createBiquadFilter();
+  wf.type = 'lowpass'; wf.frequency.value = 420;
+  const wg = ctx.createGain();
+  wg.gain.value = 0.045;
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.13;
+  const lfoG = ctx.createGain();
+  lfoG.gain.value = 0.02;
+  lfo.connect(lfoG); lfoG.connect(wg.gain);
+  wind.connect(wf); wf.connect(wg); wg.connect(master);
+  wind.start(); lfo.start();
+  const gull = () => {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1350, t);
+    o.frequency.exponentialRampToValueAtTime(880, t + 0.28);
+    const og = ctx.createGain();
+    env(og, t, 0.03, 0.028, 0.3);
+    o.connect(og); og.connect(master);
+    o.start(t); o.stop(t + 0.4);
+    setTimeout(gull, 6000 + Math.random() * 11000);
+  };
+  setTimeout(gull, 3500);
 }
 export function playBeep(freq = 1180, when = 0) { blip(freq, 0.07, 0.16, 'square', when); }
 export function playClick() { blip(1250, 0.03, 0.1, 'square'); }

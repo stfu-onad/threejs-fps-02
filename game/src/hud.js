@@ -38,7 +38,7 @@ export function createHud(onBuy, mapData) {
     channel: $('channel'), channelFill: $('channel-fill'), channelLabel: $('channel-label'),
     hitmarker: $('hitmarker'), scope: $('scope'), bombTag: $('bomb-tag'),
     hint: $('hint'), scoreTab: $('scoretab'), tabBoard: $('tab-board'),
-    radar: $('radar'),
+    radar: $('radar'), cross: $('crosshair'), vitals: $('vitals'),
   };
   els.radarCtx = els.radar ? els.radar.getContext('2d') : null;
   let bannerUntil = 0;
@@ -47,6 +47,9 @@ export function createHud(onBuy, mapData) {
     els.bannerTitle.textContent = title;
     els.bannerSub.textContent = sub || '';
     els.banner.style.opacity = '1';
+    els.banner.classList.remove('on');
+    void els.banner.offsetWidth; // restart the entrance animation
+    els.banner.classList.add('on');
     bannerUntil = performance.now() / 1000 + seconds;
   }
 
@@ -198,6 +201,19 @@ export function createHud(onBuy, mapData) {
       if (player.kit) nades.push('✂ kit');
       els.hint.textContent = nades.join('   ');
       els.scope.style.display = player.scoped ? 'block' : 'none';
+      // dynamic crosshair: the ticks ride out with the shooter's real
+      // spread — moving, airborne or deep into a spray all show here
+      if (els.cross) {
+        const spd = Math.hypot(player.vx, player.vz);
+        let sp = 7 + spd * 2.6 + Math.min(player.shotsFired, 12) * 0.55;
+        if (!player.grounded) sp += 9;
+        if (player.crouch && spd < 0.4) sp -= 2.5;
+        if (player.flashUntil > state.time) sp += 5;
+        els.cross.style.setProperty('--sp', Math.max(4, sp).toFixed(1) + 'px');
+        els.cross.style.display = player.scoped ? 'none' : 'block';
+      }
+      els.vitals.classList.toggle('low', player.hp <= 30 && player.alive);
+      els.ammo.classList.toggle('low', !!w && w.ammo <= Math.ceil((def ? def.mag : 30) * 0.25));
       drawRadar(state, player);
     }
     els.timer.textContent = state.phase === PHASE.PLANTED ? '💣 ' + fmtTime(state.phaseT) : fmtTime(state.phaseT);

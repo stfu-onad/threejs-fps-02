@@ -78,36 +78,64 @@ export function makeFighterMesh(team) {
 }
 
 // Pose a fighter's mesh from its simulation state. `now` is sim time.
+// Everything here is eased toward its target so steps, stops, hits and
+// deaths blend instead of snapping between poses.
 export function syncMesh(fighter, dt, now) {
   const g = fighter.mesh;
   if (!g) return;
   const parts = g.userData.parts;
+  const u = g.userData;
   g.position.set(fighter.x, fighter.y, fighter.z);
   // the model is built facing -z, and a fighter's facing direction is
   // (-sin yaw, -cos yaw): exactly what rotation.y = yaw produces
   g.rotation.y = fighter.yaw;
   const targetH = bodyHeight(fighter);
   const speed = Math.hypot(fighter.vx, fighter.vz);
+  const ease = Math.min(1, dt * 11);
   if (fighter.alive) {
+    u.fall = 0;
     g.rotation.x = 0;
+    g.rotation.z = 0;
     g.position.y = fighter.y;
-    g.userData.walkPhase += dt * (2 + speed * 1.9);
-    const swing = Math.min(speed / 4, 1) * 0.55;
-    parts.legL.rotation.x = Math.sin(g.userData.walkPhase) * swing;
-    parts.legR.rotation.x = -Math.sin(g.userData.walkPhase) * swing;
+    u.walkPhase += dt * (2.4 + speed * 2.1);
+    // swing amplitude swells with speed and settles when stopping
+    u.swing = (u.swing || 0) + (Math.min(speed / 4, 1) * 0.58 - (u.swing || 0)) * ease;
+    const ph = u.walkPhase;
+    parts.legL.rotation.x = Math.sin(ph) * u.swing;
+    parts.legR.rotation.x = -Math.sin(ph) * u.swing;
+    // arms counter-swing a touch; the body leans into motion and banks
+    // into strafes; idle fighters still breathe
+    parts.armL.rotation.x = -1.15 + Math.sin(ph) * u.swing * 0.22;
+    const bob = Math.abs(Math.sin(ph)) * u.swing * 0.05;
+    const breathe = Math.sin(now * 1.7 + fighter.id * 2.1) * 0.008;
     const crouchDrop = (1.78 - targetH) * 0.7;
-    parts.torso.position.y = 1.09 - crouchDrop;
-    parts.vest.position.y = 1.12 - crouchDrop;
-    parts.head.position.y = 1.56 - crouchDrop;
-    parts.helmet.position.y = 1.72 - crouchDrop;
-    parts.gun.position.y = 1.32 - crouchDrop;
-    parts.gun.rotation.x = -fighter.pitch * 0.7;
+    // flinch: a hit snaps the torso back for a beat, then it recovers
+    const flinch = fighter.flinchUntil && now < fighter.flinchUntil
+      ? Math.sin((fighter.flinchUntil - now) / 0.18 * Math.PI) * 0.22 : 0;
+    parts.torso.position.y = 1.09 - crouchDrop + bob + breathe;
+    parts.torso.rotation.x = -flinch + Math.min(speed / 5, 1) * 0.07;
+    parts.vest.position.y = 1.12 - crouchDrop + bob + breathe;
+    parts.vest.rotation.x = parts.torso.rotation.x;
+    parts.head.position.y = 1.56 - crouchDrop + bob + breathe;
+    parts.head.rotation.x = -flinch * 1.4;
+    parts.helmet.position.y = 1.72 - crouchDrop + bob + breathe;
+    parts.gun.position.y = 1.32 - crouchDrop + bob;
+    // gun kicks up for a frame on firing, like the viewmodel does
+    const gunKick = fighter.flashUntil > now ? 0.16 : 0;
+    parts.gun.rotation.x += (-fighter.pitch * 0.7 + gunKick - parts.gun.rotation.x) * Math.min(1, dt * 26);
+    g.rotation.z = Math.sin(ph) * u.swing * 0.03;
     g.visible = true;
   } else {
-    // dead: fall flat, then sink away after a few seconds
-    g.rotation.x = -Math.PI / 2;
-    g.position.y = fighter.y + 0.16;
+    // dead: crumple over a third of a second (tipping away from the
+    // shooter when we know the direction), settle, sink away later
     const sinceDeath = fighter.deathT !== undefined ? now - fighter.deathT : 0;
+    u.fall = Math.min(1, (u.fall || 0) + dt * 3.2);
+    const t = u.fall;
+    const tip = t * t * (3 - 2 * t); // smoothstep
+    g.rotation.x = -Math.PI / 2 * tip;
+    g.rotation.z = (fighter.deathYaw ? Math.sin(fighter.deathYaw) * 0.3 : 0.2) * tip;
+    g.position.y = fighter.y + 0.16 * tip + Math.sin(Math.min(t * 3, 1) * Math.PI) * 0.05;
+    parts.legL.rotation.x *= 0.9; parts.legR.rotation.x *= 0.9;
     g.visible = sinceDeath < 6;
   }
 }
@@ -133,6 +161,13 @@ export function makeViewmodel(defId) {
     mag.position.set(0, -0.15, 0.02);
     mag.rotation.x = 0.25;
     g.add(mag);
+    g.userData.mag = mag; // main.js animates this through the reload
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.025, bodyLen * 0.7), vmMats.gun);
+    rail.position.set(0, 0.085, -0.05);
+    g.add(rail);
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.05, 0.012), vmMats.accent);
+    sight.position.set(0, 0.11, -bodyLen / 2 + 0.08);
+    g.add(sight);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.16, 0.07), vmMats.accent);
     grip.position.set(0, -0.13, 0.22);
     grip.rotation.x = 0.4;

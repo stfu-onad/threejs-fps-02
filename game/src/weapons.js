@@ -160,10 +160,12 @@ export function tryFire(state, colliders, shooter, rng, events, now) {
       }
       dmg = Math.max(1, Math.round(dmg));
       bestFighter.hp -= dmg;
+      bestFighter.flinchUntil = now + 0.18; // characters.js snaps the torso
       events.push({ type: 'hit', victim: bestFighter, attacker: shooter, zone: bestZone, damage: dmg });
       if (bestFighter.hp <= 0 && bestFighter.alive) {
         bestFighter.hp = 0;
         bestFighter.alive = false;
+        bestFighter.deathYaw = shooter.yaw; // fall away from the shot
         bestFighter.deaths += 1;
         shooter.kills += 1;
         shooter.money += 300;

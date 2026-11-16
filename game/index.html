@@ -12,30 +12,52 @@
 
   /* ---------- HUD ---------- */
   #hud { position: fixed; inset: 0; pointer-events: none; }
-  #crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    font-size: 22px; color: rgba(255,255,255,0.85); text-shadow: 0 0 4px #000; }
+  #vig { position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 62%, rgba(4,6,10,0.42) 100%); }
+  /* dynamic crosshair: four ticks pushed out by --sp (set from the real
+     spread each frame by hud.js), plus a centre dot */
+  #crosshair { position: absolute; left: 50%; top: 50%; --sp: 9px; }
+  #crosshair i { position: absolute; background: rgba(255,255,255,0.92);
+    box-shadow: 0 0 3px #000; transition: none; }
+  #crosshair i:nth-child(1) { width: 2px; height: 8px; left: -1px; top: calc(-8px - var(--sp)); }
+  #crosshair i:nth-child(2) { width: 2px; height: 8px; left: -1px; top: var(--sp); }
+  #crosshair i:nth-child(3) { width: 8px; height: 2px; top: -1px; left: calc(-8px - var(--sp)); }
+  #crosshair i:nth-child(4) { width: 8px; height: 2px; top: -1px; left: var(--sp); }
+  #crosshair b { position: absolute; width: 2px; height: 2px; left: -1px; top: -1px;
+    background: rgba(255,255,255,0.92); box-shadow: 0 0 3px #000; }
   #hitmarker { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     font-size: 26px; opacity: 0; transition: opacity 0.08s; text-shadow: 0 0 4px #000; }
+  .panel { background: linear-gradient(135deg, rgba(10,14,20,0.72), rgba(10,14,20,0.45));
+    border: 1px solid rgba(255,255,255,0.22); border-left: 3px solid #f2a33c;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+    padding: 8px 12px; }
   #topbar { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
     text-align: center; }
-  #timer { font-size: 30px; font-weight: 700; letter-spacing: 2px; text-shadow: 0 2px 6px #000; }
+  #timer { font-size: 30px; font-weight: 700; letter-spacing: 2px; text-shadow: 0 2px 6px #000;
+    font-variant-numeric: tabular-nums; }
   #score { font-size: 15px; font-weight: 600; letter-spacing: 1px; opacity: 0.92; }
   #round-label { font-size: 12px; letter-spacing: 2px; opacity: 0.75; }
-  #bomb-tag { margin-top: 4px; color: #ff5f4a; font-weight: 700; letter-spacing: 1px; display: none; }
+  #bomb-tag { margin-top: 4px; color: #ff5f4a; font-weight: 700; letter-spacing: 1px; display: none;
+    animation: blink 0.9s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.35; } }
   #vitals { position: absolute; left: 26px; bottom: 24px; width: 250px; }
-  #hp-bar { height: 14px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.35); }
+  #hp-bar { height: 14px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.35);
+    clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%); }
   #hp-fill { height: 100%; width: 100%; background: #7dd069; transition: width 0.15s; }
   #hp-text { font-size: 30px; font-weight: 700; text-shadow: 0 2px 5px #000; }
+  #vitals.low #hp-text { color: #ff6a55; animation: blink 0.7s steps(2) infinite; }
   #armor-text { font-size: 14px; opacity: 0.9; height: 18px; }
   #gunbox { position: absolute; right: 26px; bottom: 24px; text-align: right; }
   #weapon-name { font-size: 15px; letter-spacing: 1px; opacity: 0.9; }
-  #ammo { font-size: 34px; font-weight: 700; text-shadow: 0 2px 5px #000; }
+  #ammo { font-size: 34px; font-weight: 700; text-shadow: 0 2px 5px #000; font-variant-numeric: tabular-nums; }
+  #ammo.low { color: #ff6a55; }
   #money { color: #9fe870; font-size: 19px; font-weight: 700; }
   #hint { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
     font-size: 14px; opacity: 0.85; text-shadow: 0 1px 3px #000; }
   #killfeed { position: absolute; right: 22px; top: 70px; text-align: right; font-size: 14px; }
   .feed-line { background: rgba(8,10,14,0.55); padding: 3px 9px; margin-bottom: 4px;
-    border-right: 3px solid #f2a33c; transition: opacity 0.8s; }
+    border-right: 3px solid #f2a33c; transition: opacity 0.8s; animation: feedin 0.18s ease-out; }
+  @keyframes feedin { from { transform: translateX(14px); opacity: 0; } }
   .feed-line.radio { border-right-color: #7fb8d9; color: #cfe6f2; font-style: italic; }
   #radar { position: absolute; left: 22px; top: 14px; border: 1px solid rgba(255,255,255,0.3);
     background: rgba(8,12,16,0.55); }
@@ -45,6 +67,8 @@
     transition: opacity 0.25s; }
   #banner { position: absolute; left: 50%; top: 30%; transform: translateX(-50%);
     text-align: center; opacity: 0; transition: opacity 0.4s; }
+  #banner.on { animation: bannerin 0.35s ease-out; }
+  @keyframes bannerin { from { transform: translateX(-50%) scale(1.12); letter-spacing: 6px; } }
   #banner-title { font-size: 44px; font-weight: 800; letter-spacing: 3px; text-shadow: 0 3px 10px #000; }
   #banner-sub { font-size: 17px; opacity: 0.9; letter-spacing: 1px; }
   #channel { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%);
@@ -70,14 +94,20 @@
   .bigbtn { pointer-events: auto; cursor: pointer; border: 2px solid rgba(255,255,255,0.4);
     background: rgba(16,20,28,0.8); color: #eef1f4; padding: 16px 30px; font-size: 19px;
     font-weight: 700; letter-spacing: 1px; }
-  .bigbtn:hover { border-color: #f2a33c; background: rgba(40,36,26,0.9); }
+  .bigbtn:hover { border-color: #f2a33c; background: rgba(40,36,26,0.9); transform: translateY(-2px); }
+  .bigbtn { transition: transform 0.15s, border-color 0.15s, background 0.15s;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%); }
+  .screen { animation: screenin 0.5s ease-out; }
+  @keyframes screenin { from { opacity: 0; } }
   .bigbtn small { display: block; font-weight: 400; font-size: 13px; opacity: 0.8; margin-top: 4px; }
   .controls { margin-top: 22px; font-size: 13.5px; opacity: 0.75; line-height: 1.7; }
 
   /* ---------- buy menu ---------- */
   #buymenu { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: 620px; background: rgba(10,13,19,0.88); border: 1px solid rgba(255,255,255,0.25);
-    padding: 18px 22px; display: none; }
+    border-top: 3px solid #f2a33c; padding: 18px 22px; display: none; }
+  #buymenu[style*="block"] { animation: buyin 0.22s ease-out; }
+  @keyframes buyin { from { opacity: 0; transform: translate(-50%, -48%); } }
   #buymenu h2 { margin: 0 0 4px; letter-spacing: 3px; font-size: 21px; }
   #buy-money { color: #9fe870; font-weight: 700; margin-bottom: 12px; }
   #buy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -146,9 +176,10 @@
 </style>
 </head>
 <body>
+<div id="vig"></div>
 <div id="hud" style="display:none">
   <canvas id="radar" width="148" height="128"></canvas>
-  <div id="crosshair">＋</div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
   <div id="hitmarker">✕</div>
   <div id="topbar">
     <div id="timer">1:40</div>
@@ -156,12 +187,12 @@
     <div id="round-label">ROUND 1</div>
     <div id="bomb-tag">BOMB PLANTED</div>
   </div>
-  <div id="vitals">
+  <div id="vitals" class="panel">
     <div id="armor-text"></div>
     <div id="hp-text">100</div>
     <div id="hp-bar"><div id="hp-fill"></div></div>
   </div>
-  <div id="gunbox">
+  <div id="gunbox" class="panel">
     <div id="weapon-name">P9 Sidearm</div>
     <div id="ammo">12 / 96</div>
     <div id="money">$800</div>
